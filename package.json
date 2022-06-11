@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npm i && node .",
+    "start": "npm i",
+    "start:complete": "node index.js",
     "devStart": "nodemon ."
   },
   "keywords": [],
