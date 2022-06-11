@@ -199,4 +199,8 @@ app.get("/query", async (req, res) => {
     }
 })
 
+app.listen(PORT, () => {
+  console.log("running on port: " + PORT)
+})
+
 // client.query("CREATE TABLE student (id SERIAL PRIMARY KEY, username VARCHAR(40) UNIQUE, password VARCHAR(40), email VARCHAR(40) UNIQUE, avatar TEXT);")
