@@ -128,7 +128,7 @@ io.on("connection", socket => {
     })
 })
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3000
 
 let client = new Client({
   connectionString: process.env.DATABASE_URL,
