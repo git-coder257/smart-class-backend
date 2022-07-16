@@ -32,46 +32,101 @@ let timetables_get = require("./api/v1/get/timetables").timetables
 let school_post = require("./api/v1/post/school").school
 let school_get = require("./api/v1/get/school").school
 
+let email_get = require('./api/v1/get/email').email
 
-// verify("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6Im9yc29uIiwicGFzc3dvcmQiOiIxMjM0IiwiaWF0IjoxNjU2NzU2NTQzfQ.2jrZyPSpbA51eyXrGJbJ1sO8YBTaPQ-CblROZs8RQrc", process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-//     console.log(user)
-// })
+const handlegetaccountid = async (accounttype, username) => {
+    try {
+        let id = await (await client.query(`SELECT id FROM ${accounttype} WHERE username = $1;`, [
+            username
+        ])).rows[0].id
 
-// const start = () => {
+        return id
+    } catch (error) {
+        console.error(error)
+    }
+}
 
-// console.log(io.)
-
+let socket_ids = new Map()
 
 io.on("connection", socket => {
     let username
+    let accounttype = "student"
+    let disconnected = false
 
     console.log(socket.handshake.auth.key)
     try {
         let account = verify(socket.handshake.auth.key, process.env.ACCESS_TOKEN_SECRET)
         console.log(account)
         username = account.username
+
+        client.query("SELECT * FROM student WHERE username = $1;", [
+            account.username
+        ], (err, result) => {
+            if (err) console.log(err)
+            else {
+                if (result.rows.length === 0){
+                    client.query("SELECT * FROM teacher WHERE username = $1", [
+                        account.username
+                    ], (err, result) => {
+                        if (err) console.log(err)
+                        else {
+                            if (result.rows.length === 0){
+                                socket.emit("error", "the username/password you gave was incorrect")
+                                socket.disconnect()
+                                disconnected = true
+                            } else {
+                                accounttype = "teacher"
+                            }
+                        }
+                    })
+                }
+            }
+        })
+
+        if (!disconnected){
+            socket_ids.set(username, socket.id)
+        }
     } catch (error) {
         console.error(error)
     }
-    
+
     console.log("successfully connected")
-    
+
     socket.on("new-email", (e) => {
         let users = e.users
         let text = e.text
-        
+        let title = e.title
+
+        let email_id
+
+        (async function(){
+            email_id = await (await client.query("INSERT INTO email (text, title) VALUES ($1, $2) RETURNING *;", [
+                text,
+                title
+            ])).rows[0].id
+        })()
+
+        users.push(username)
+
         users.forEach(user => {
-            let compressInstance = new compress()
-            compressInstance.handlecompress("")
-            socket.emit(user, {
-                text
+            (async function(){
+                let user_id = await (await handlegetaccountid(accounttype, user))
+                console.log([user_id, email_id])
+
+                await (await client.query("INSERT INTO emails (user_id, email_id) VALUES ($1, $2);", [
+                    user_id,
+                    email_id
+                ]))
+            })()
+            console.log(socket_ids.get(user))
+            socket.to(socket_ids.get(user)).emit("email", {
+                text,
+                title,
+                id: email_id
             })
         })
     })
 })
-// }
-
-// let socketvar
 
 const PORT = process.env.PORT || 3001
 
@@ -88,8 +143,28 @@ app.use(cors())
 app.use(express.json())
 
 app.get("/", (req, res) => {
-    // console.log("hello")
+    console.log("hello")
     res.send("Welcome to my REST api.")
+})
+
+app.post("/api/v1/disconnected", async (req, res) => {
+    try {   
+        let account = verify(req.body.accessToken, process.env.ACCESS_TOKEN_SECRET)
+
+        socket_ids.delete(account.username)
+    } catch (error) {
+        console.error(error)
+    }
+})
+
+app.get("/api/v1/emails/:accessToken/:limit", async (req, res) => {
+    try {
+        let email = new email_get(req, res, client)
+
+        await email.run()
+    } catch (error) {
+        console.error(error)
+    }
 })
 
 app.get("/api/v1/school/:username/:password", async (req, res) => {
@@ -183,7 +258,6 @@ app.get("/api/v1/lessons/:username/:password/:accounttype", async (req, res) => 
     }
 })
 
-//http://localhost:3000/api/v1/lessons/orson/1234/student
 app.put("/api/v1/lesson/:lesson_id/:lesson_change/:data_to_change/:username/:password", async (req, res) => {
     try {
         let lesson = new lesson_put(req, res, client)
@@ -244,94 +318,6 @@ app.get("/query", async (req, res) => {
     }
 })
 
-// app.listen(PORT, () => {
-//   console.log("running on port: " + PORT)
-// })
-
 console.log(PORT)
 
 server.listen(PORT)
-
-// class compress {
-//     constructor (hello){
-//         this.text = ""
-
-//         this.separate_with = '~';
-//         this.encodable = this.get_map('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.');
-//         this.base10 = this.get_map('0123456789')
-
-//         this.algorithm = compressjs.Lzp3
-//     }
-
-//     handlecompress = (text) => {
-//         let data = new Buffer.from(text, "utf8")
-
-//         let compressedData = this.algorithm.compressFile(data)
-
-//         return this.encodeNums(compressedData)
-//     }
-
-//     handledecompress = (decompressedDataParams) => {
-//         let decompressedData = this.decodeNums(decompressedDataParams)
-
-//         var decompressed = this.algorithm.decompressFile(decompressedData);
-
-//         var data = new Buffer.from(decompressed).toString('utf8');
-
-//         return data
-//     }
-
-//     get_map(s) {
-//         let d = {}
-//         for (var i=0; i<s.length; i++) {
-//             d[s.charAt(i)] = i}
-//         d.length = s.length
-//         d._s = s
-//         return d
-//     }
-    
-//     baseconvert(number, fromdigits, todigits) {
-//         var number = String(number)
-        
-//         let neg
-
-//         if (number.charAt(0) == '-') {
-//             number = number.slice(1, number.length)
-//             neg=1}
-//         else {
-//             neg=0}
-    
-//         var x = 0
-//         for (var i=0; i<number.length; i++) {
-//             var digit = number.charAt(i)
-//             x = x*fromdigits.length + fromdigits[digit]
-//         }
-    
-//         let res = ""
-//         while (x>0) {
-//             let remainder = x % todigits.length
-//             res = todigits._s.charAt(remainder) + res
-//             x = parseInt(x/todigits.length)
-//         }
-    
-//         if (neg) res = "-"+res
-//         return res
-//     }
-    
-//     encodeNums(L) {
-//         var r = []
-//         for (var i=0; i<L.length; i++) {
-//              r.push(this.baseconvert(L[i], this.base10, this.encodable))
-//         }
-//         return r.join(this.separate_with)
-//     }
-    
-//     decodeNums(s) {
-//         var r = []
-//         var s = s.split(this.separate_with)
-//         for (var i=0; i<s.length; i++) {
-//              r.push(parseInt(this.baseconvert(s[i], this.encodable, this.base10)))
-//         }
-//         return r
-//     }
-// }

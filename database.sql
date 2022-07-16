@@ -8,4 +8,4 @@ CREATE TABLE school (id SERIAL, school_name VARCHAR(100) PRIMARY KEY, username V
 CREATE TABLE timetable (id SERIAL PRIMARY KEY, lesson_id INT);
 CREATE TABLE time (timetable_id INT, time VARCHAR(75));
 CREATE TABLE email (id SERIAL PRIMARY KEY, text TEXT, title TEXT);
-CREATE TABLE emails (user_id INT, email_id INT PRIMARY KEY);
+CREATE TABLE emails (user_id INT, email_id INT);
